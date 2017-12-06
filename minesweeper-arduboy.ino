@@ -1,6 +1,8 @@
 #include <Arduboy2.h>
+#include <ArduboyPlaytune.h>
 
 Arduboy2 arduboy;
+ArduboyPlaytune tunes(arduboy.audio.enabled);
 
 const unsigned char PROGMEM sprites[] =
 {
@@ -26,6 +28,29 @@ const unsigned char PROGMEM sprites[] =
 0x2b, 0x55, 0x2b, 0x55, 0x2b, 0x55, 0x2a, 0x00,
 };
 
+const byte winScore[] PROGMEM = {
+  0x90, 60, 
+  0, 255, 
+  0x90, 64, 
+  0, 255, 
+  0x90, 67, 
+  0, 255, 
+  0x80, 
+  0xF0
+};
+
+const byte loseScore[] PROGMEM = {
+  0x90, 57, 
+  0, 255, 
+  0x90, 53, 
+  0, 255, 
+  0x90, 50, 
+  0, 255, 
+  0x80, 
+  0xF0
+};
+
+
 const signed char IS_MINE = -1;
 const unsigned char IS_HIDDEN = 0;
 const unsigned char IS_REVEALED = 1;
@@ -49,6 +74,10 @@ uint16_t pauseEnded = 0;
 
 void setup() {
   arduboy.begin();
+
+  tunes.initChannel(PIN_SPEAKER_1);
+  tunes.initChannel(PIN_SPEAKER_2);
+  
   arduboy.clear();
 }
 
@@ -169,6 +198,7 @@ void clickA() {
     if (gridCount[markerX][markerY] == IS_MINE) {
       gameState = STATE_LOSING;
       pauseEnded = arduboy.frameCount + 60 * 2;
+      tunes.playScore(loseScore);
       return;
     }
     
@@ -179,6 +209,7 @@ void clickA() {
     if (countHidden() == 10) {
       gameState = STATE_WINNING;
       pauseEnded = arduboy.frameCount + 60 * 2;
+      tunes.playScore(winScore);
       return;
     }
   }
