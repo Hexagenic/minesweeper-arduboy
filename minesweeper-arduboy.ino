@@ -53,7 +53,7 @@ const byte loseScore[] PROGMEM = {
 struct Square {
   bool isMine: 1;
   bool isRevealed: 1;
-  bool isFlagged: 2;
+  bool isFlagged: 1;
 
   uint8_t neighbouringMines: 4;
 };
