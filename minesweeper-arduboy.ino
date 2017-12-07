@@ -50,20 +50,25 @@ const byte loseScore[] PROGMEM = {
   0xF0
 };
 
+struct Square {
+  bool isMine: 1;
+  bool isRevealed: 1;
+  bool isFlagged: 2;
 
-const signed char IS_MINE = -1;
-const unsigned char IS_HIDDEN = 0;
-const unsigned char IS_REVEALED = 1;
-const unsigned char IS_FLAGGED = 2;
+  uint8_t neighbouringMines: 4;
+};
 
-const unsigned char STATE_PLAYING = 0;
-const unsigned char STATE_WINNING = 1;
-const unsigned char STATE_LOSING = 2;
+static_assert(sizeof(Square) == 1, "Square should fit inside a byte.");
+
+enum class GameState: uint8_t {
+  Playing,
+  Winning,
+  Losing
+};
 
 // State
-unsigned char gameState = STATE_PLAYING;
-signed char gridCount[9][9] = {0};
-unsigned char gridStatus[9][9] = {0};
+GameState gameState = GameState::Playing;
+Square grid[9][9] = {0};
 
 int offsetX = 0;
 int offsetY = 0;
@@ -82,20 +87,19 @@ void setup() {
 }
 
 const unsigned char* getSprite(int x, int y) {
-  if (gridStatus[x][y] == IS_FLAGGED) {
+  if (grid[x][y].isFlagged) {
     return sprites + 32 * 3;
-  } else if (gridStatus[x][y] == IS_HIDDEN) {
+  } else if (!grid[x][y].isRevealed) {
     return sprites + 32 * 0;
-  } else if (gridCount[x][y] == IS_MINE) {
+  } else if (grid[x][y].isMine) {
     return sprites + 32 * 2;
   }
   return sprites + 32 * 1;
 }
 
 void resetGame() {
-  gameState = STATE_PLAYING;
-  memset(gridCount, 0, sizeof(gridCount));
-  memset(gridStatus, 0, sizeof(gridStatus));
+  gameState = GameState::Playing;
+  memset(grid, 0, sizeof(grid));
   firstClick = true;
   
   offsetX = 0;
@@ -129,12 +133,12 @@ void revealNeighbours(int x, int y) {
       int x2 = x + i;
       int y2 = y + j;
       
-      if (i == 0 && j == 0 || isOutside(x2, y2)) continue;
+      if (i == 0 && j == 0 || isOutside(x2, y2) || grid[x2][y2].isMine) continue;
 
-      if (gridStatus[x2][y2] == IS_HIDDEN && gridCount[x2][y2] != IS_MINE) {
-        gridStatus[x2][y2] = IS_REVEALED;
+      if (!grid[x2][y2].isRevealed) {
+        grid[x2][y2].isRevealed = true;
 
-        if (gridCount[x2][y2] == 0) {
+        if (grid[x2][y2].neighbouringMines == 0) {
           revealNeighbours(x2, y2);
         }
       }
@@ -148,9 +152,9 @@ void addMineCountAround(int x, int y) {
       int x2 = x + i;
       int y2 = y + j;
       
-      if (i == 0 && j == 0 || isOutside(x2, y2) || gridCount[x2][y2] == IS_MINE) continue;
+      if (i == 0 && j == 0 || isOutside(x2, y2)) continue;
 
-      gridCount[x2][y2]++;
+      grid[x2][y2].neighbouringMines++;
     }
   }
 }
@@ -162,11 +166,11 @@ void spawnMines() {
     int x = random(0, 9);
     int y = random(0, 9);
     
-    if ((x == markerX && y == markerY) || gridCount[x][y] == IS_MINE) {
+    if ((x == markerX && y == markerY) || grid[x][y].isMine) {
       continue;
     }
 
-    gridCount[x][y] = IS_MINE;
+    grid[x][y].isMine = true;
     mines++;
 
     addMineCountAround(x, y);
@@ -177,7 +181,7 @@ int countHidden() {
   int count = 0;
   for (int x = 0; x < 9; x++) {
     for (int y = 0; y < 9; y++) {
-      if (gridStatus[x][y] != IS_REVEALED) {
+      if (!grid[x][y].isRevealed) {
         count++;
       }
     }
@@ -192,22 +196,22 @@ void clickA() {
     spawnMines(); 
   }
 
-  if (gridStatus[markerX][markerY] == IS_HIDDEN) {
-    gridStatus[markerX][markerY] = IS_REVEALED;
+  if (!grid[markerX][markerY].isRevealed) {
+    grid[markerX][markerY].isRevealed = true;
 
-    if (gridCount[markerX][markerY] == IS_MINE) {
-      gameState = STATE_LOSING;
+    if (grid[markerX][markerY].isMine) {
+      gameState = GameState::Losing;
       pauseEnded = arduboy.frameCount + 60 * 2;
       tunes.playScore(loseScore);
       return;
     }
     
-    if (gridCount[markerX][markerY] == 0) {
+    if (grid[markerX][markerY].neighbouringMines == 0) {
       revealNeighbours(markerX, markerY);
     }
 
     if (countHidden() == 10) {
-      gameState = STATE_WINNING;
+      gameState = GameState::Winning;
       pauseEnded = arduboy.frameCount + 60 * 2;
       tunes.playScore(winScore);
       return;
@@ -216,8 +220,7 @@ void clickA() {
 }
 
 void clickB() {
-  if (gridStatus[markerX][markerY] == IS_HIDDEN) gridStatus[markerX][markerY] = IS_FLAGGED;
-  else if (gridStatus[markerX][markerY] == IS_FLAGGED) gridStatus[markerX][markerY] = IS_HIDDEN;
+  if (!grid[markerX][markerY].isRevealed) grid[markerX][markerY].isFlagged = !grid[markerX][markerY].isFlagged;
 }
 
 void gameLoop() {
@@ -252,9 +255,9 @@ void gameLoop() {
       int spriteNo = (x + y) % 4;
       arduboy.drawBitmap(pixelX, pixelY, getSprite(x,y), 16, 16, WHITE);
 
-      if (gridStatus[x][y] == IS_REVEALED && gridCount[x][y] > 0) {
+      if (grid[x][y].isRevealed && !grid[x][y].isMine && grid[x][y].neighbouringMines > 0) {
         arduboy.setCursor(pixelX + 6, pixelY + 5);
-        arduboy.print(gridCount[x][y]);
+        arduboy.print(grid[x][y].neighbouringMines);
       }
     }
   }
@@ -303,11 +306,11 @@ void loop() {
     return;
   }
   
-  if (gameState == STATE_PLAYING) {
+  if (gameState == GameState::Playing) {
     gameLoop();
-  } else if (gameState == STATE_WINNING) {
+  } else if (gameState == GameState::Winning) {
     winningLoop();
-  } else if (gameState == STATE_LOSING) {
+  } else if (gameState == GameState::Losing) {
     losingLoop();
   }
 
