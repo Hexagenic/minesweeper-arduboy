@@ -196,7 +196,7 @@ void clickA() {
     spawnMines(); 
   }
 
-  if (!grid[markerX][markerY].isRevealed) {
+  if (!grid[markerX][markerY].isRevealed && !grid[markerX][markerY].isFlagged) {
     grid[markerX][markerY].isRevealed = true;
 
     if (grid[markerX][markerY].isMine) {
