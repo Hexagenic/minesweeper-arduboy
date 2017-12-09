@@ -133,7 +133,7 @@ void revealNeighbours(int x, int y) {
       int x2 = x + i;
       int y2 = y + j;
       
-      if (i == 0 && j == 0 || isOutside(x2, y2) || grid[x2][y2].isMine) continue;
+      if (i == 0 && j == 0 || isOutside(x2, y2) || grid[x2][y2].isMine || grid[x2][y2].isFlagged) continue;
 
       if (!grid[x2][y2].isRevealed) {
         grid[x2][y2].isRevealed = true;
